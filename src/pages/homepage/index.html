@@ -1,0 +1,346 @@
+<!DOCTYPE>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>文物数字资源管理系统</title>
+    </head>
+    <body>
+        <section class="pageContainer">
+            <div id="app" v-cloak>
+                <header-cp></header-cp>
+                <section class="content">
+                    <aside class="leftContainer">
+                        <h4 style="padding:10px;">目录</h4>
+                        <div class="topSearch">
+                            <!--:on-icon-click="handleIconClick"-->
+                            <el-input placeholder="请输入搜索关键字"
+                                      icon="search"
+                                      v-model="keyword"
+                            >
+                            </el-input>
+                        </div>
+                        <div class="userType">
+                            <h4 class="containerTitle">
+                                博物馆或研究所列表
+                            </h4>
+                            <div class="catalogContainer">
+                                <el-tree
+                                    :data="catalogs"
+                                    :props="defaultProps"
+                                    show-checkbox
+                                    node-key="id"
+                                    default-expand-all
+                                    :expand-on-click-node="true"
+                                    :render-content="renderContent"
+                                    :filter-node-method="filterNode"
+                                    highlight-current
+                                    ref="catalogs"
+                                    @node-click="clickNodeHandler"
+                                >
+                                </el-tree>
+                                <!--编辑节点名称模态框-->
+                                <transition name="el-fade-in">
+                                    <div v-show="editCatalog" class="editNodeModal" @click.self="hideModal($event)">
+                                        <el-row>
+                                            <el-col :span="24">
+                                                <el-input v-model="currNodeLabel" placeholder="输入目录名称" autofocus size="small">
+                                                    <el-button size="small" icon="check" slot="append" @click="submitEdit"></el-button>
+                                                </el-input>
+                                            </el-col>
+                                        </el-row>
+                                    </div>
+                                </transition>
+                            </div>
+                        </div>
+                    </aside>
+                    <section class="centerContainer">
+                        <header class="centerTop">
+                            <div class="searchCondition">
+                                <div class="title">
+                                    搜索条件
+                                </div>
+                                <div class="conditions">
+                                    <el-tag v-for="condition in conditions" closable="true" @close="handleClose(condition)">{{condition}}</el-tag>
+                                </div>
+                            </div>
+                            <div class="orderType">
+                                <span class="orderBtn" @click="changeOrderType('time')" v-show="orderType.time">
+                                    时间排序
+                                    <i class="el-icon-arrow-up" v-show="orderType.time==='asc'"></i>
+                                    <i class="el-icon-arrow-down" v-show="orderType.time==='desc'"></i>
+                                </span>
+                                <span class="orderBtn" @click="changeOrderType('focus')" v-show="orderType.focus">
+                                    浏览排序
+                                    <i class="el-icon-arrow-up" v-show="orderType.focus==='asc'"></i>
+                                    <i class="el-icon-arrow-down" v-show="orderType.focus==='desc'"></i>
+                                </span>
+                            </div>
+                        </header>
+                        <section class="mainContainer">
+                            <image-item v-for="(item,$index) in itemList" :path="item.path" :user="item.user" :id="item.id" @show-detail="showDetail($index)" :key="item.id" :focus="item.focus" :comment="item.comment" :fav="item.fav" :time="item.time"></image-item>
+                            <!--这里要添加模态框到最顶层,查看详情-->
+                        </section>
+                    </section>
+                    <aside class="rightContainer">
+                        <div class="upload_download_info">
+                            <div class="overview">
+                                <p>共上传资源: 304个</p>
+                                <p>下载资源: 4个</p>
+                            </div>
+                            <div class="progressContainer">
+                                <div>
+                                    <el-progress :text-inside="true" :stroke-width="18" :percentage="(uploadInfo.done/uploadInfo.total)*100"></el-progress>
+                                    <p>正在下载{{uploadInfo.done}}/{{uploadInfo.total}}</p>
+                                </div>
+                                <div class="uploadBtn">
+                                    <el-button size="large" @click="showUpload">
+                                        <svg class="icon" aria-hidden="true">
+                                            <use xlink:href="#icon-shangchuan"></use>
+                                        </svg>
+                                        文件上传
+                                    </el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="countInfo">
+                            共有 <b>{{itemList.length||'-'}}</b> 张图片 Of <br />
+                            <div class="cloudTagContainer">
+                                <a v-for="tag in tagList" :style="tagStyle(tag.heat)" href="javascript:void(0)">{{tag.tagName}}</a>
+                            </div>
+                        </div>
+                    </aside>
+                </section>
+                <!--详情模态框-->
+                <transition name="el-fade-in" v-if="currDetail">
+                    <div class="Modal detailModal" v-show="detailModal" @click.self="hideDetail">
+                        <div class="operate closeModal" @click="hideDetail">
+                            <i class="el-icon-close"></i>
+                        </div>
+                        <div class="detailContainer">
+                            <div class="operate leftArrow" v-show="preDetail"  @click="preView">
+                                <i class="el-icon-arrow-left"></i>
+                            </div>
+                            <div class="operate rightArrow" v-show="nextDetail" @click="nextView">
+                                <i class="el-icon-arrow-right"></i>
+                            </div>
+                            <header>
+                                {{currDetail.name}}
+                            </header>
+                            <nav class="basicInfo">
+                                <b>{{currDetail.user.name}}</b>
+                                <span>{{currDetail.time}}</span>
+                            </nav>
+                            <section>
+                                <div :class="['zoomPic',{zoomFull:detailZoom||currIsObj}]">
+                                    <model-obj  v-if="currIsObj" :src="currDetail.path" :width="800" :height="475" @on-load="objLoading"></model-obj>
+                                    <img v-else :src="currDetail.path" alt="图片无法正常显示"  @click="zoomChange">
+                                    <div class="loading" v-show="currIsObj&&objLoadingStatus"></div>
+                                </div>
+                                <aside class="rightPanel">
+                                    <ul class="shared_collection_download">
+                                        <li class="shared">
+                                            <p>
+                                                <span>
+                                                    <i class="icon el-icon-share"></i>
+                                                    分享
+                                                </span>
+                                                <b>{{currDetail.share}}次</b>
+                                            </p>
+                                        </li>
+                                        <li class="collection">
+                                            <p>
+                                                <span @click="collect">
+                                                    <i :class="['icon',{'el-icon-star-on':isCollection,'el-icon-star-off':!isCollection}]"></i>
+                                                    收藏
+                                                </span>
+                                                <b>{{currDetail.collect}}次</b>
+                                            </p>
+                                        </li>
+                                        <li class="download">
+                                            <p>
+                                                <span>
+                                                    <!--symbol引用阿里巴巴图标库-->
+                                                    <svg class="icon" aria-hidden="true">
+                                                        <use xlink:href="#icon-xiazai"></use>
+                                                    </svg>
+                                                    下载
+                                                </span>
+                                                <b>{{currDetail.download}}次</b>
+                                            </p>
+                                        </li>
+                                    </ul>
+                                    <div class="sameRelics">
+                                        <p class="title">类似文物</p>
+                                        <div class="picContainer">
+                                            <img v-for="n in 10" :src="currDetail.same" alt="图片无法正常显示">
+                                        </div>
+                                    </div>
+                                    <div class="tags">
+                                        <p class="title">标签</p>
+                                        <div class="tagContainer">
+                                            <el-tag v-for="n in 10" style="margin: 5px;">标签{{n}}</el-tag>
+                                        </div>
+                                    </div>
+                                </aside>
+                                <div class="historyInfo">
+                                    <header class="handleBtns">
+                                        <span>
+                                            <!--symbol引用阿里巴巴图标库-->
+                                            <svg class="icon" aria-hidden="true">
+                                                <use xlink:href="#icon-shangchuan"></use>
+                                            </svg>
+                                        </span>
+                                        <span>
+                                            <!--symbol引用阿里巴巴图标库-->
+                                            <svg class="icon" aria-hidden="true">
+                                                <use xlink:href="#icon-shanchu"></use>
+                                            </svg>
+                                        </span>
+                                        <span @click="lockStatusChange">
+                                             <!--symbol引用阿里巴巴图标库-->
+                                            <svg class="icon" aria-hidden="true" v-show="detailLock">
+                                                <use xlink:href="#icon-suoguan01"></use>
+                                            </svg>
+                                            <!--symbol引用阿里巴巴图标库-->
+                                            <svg class="icon" aria-hidden="true" v-show="!detailLock">
+                                                <use xlink:href="#icon-suokai01"></use>
+                                            </svg>
+                                        </span>
+                                    </header>
+                                    <div class="">
+                                        <el-radio-group v-model="currPanel">
+                                            <el-radio-button label="历史版本"></el-radio-button>
+                                            <el-radio-button label="下载记录"></el-radio-button>
+                                            <el-radio-button label="分享记录"></el-radio-button>
+                                        </el-radio-group>
+                                        <div class="infoPanel">
+                                            <!--<p>{{currPanel}}</p>-->
+                                            <div class="tableContainer">
+                                                <table>
+                                                    <tbody>
+                                                    <tr>
+                                                        <td>2016.12.24</td>
+                                                        <td>罗丹更新了文件</td>
+                                                        <td>
+                                                            <a href="javascript:void(0)">查看</a>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>2016.12.24</td>
+                                                        <td>罗丹更新了文件</td>
+                                                        <td>
+                                                            <a href="javascript:void(0)">查看</a>
+                                                        </td>
+                                                    </tr> <tr>
+                                                        <td>2016.12.24</td>
+                                                        <td>罗丹更新了文件</td>
+                                                        <td>
+                                                            <a href="javascript:void(0)">查看</a>
+                                                        </td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>2016.12.24</td>
+                                                        <td>罗丹更新了文件</td>
+                                                        <td>
+                                                            <a href="javascript:void(0)">查看</a>
+                                                        </td>
+                                                    </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </transition>
+                <!--上传模态框-->
+                <transition name="el-fade-in">
+                    <div class="Modal uploadModal" v-show="uploadModal" @click.self="hideUpload">
+                        <div class="uploadContainer">
+                            <header>
+                                文件上传
+                                <div class="operate closeModal" @click="hideUpload">
+                                     <i class="el-icon-close"></i>
+                                </div>
+                            </header>
+                            <aside class="leftContainer">
+                                <section class="catalogsContent">
+                                    <h4 style="padding:10px;">目录</h4>
+                                    <div class="topSearch">
+                                        <!--:on-icon-click="handleIconClick"-->
+                                        <el-input placeholder="请输入搜索关键字"
+                                                  icon="search"
+                                                  v-model="keywordUpload"
+                                        >
+                                        </el-input>
+                                    </div>
+                                    <div class="userType">
+                                        <h4 class="containerTitle">
+                                            博物馆或研究所列表
+                                        </h4>
+                                        <div class="catalogContainer">
+                                            <!--:render-content="renderContent"-->
+                                            <!--@node-click="clickNodeHandler"-->
+                                            <el-tree
+                                                    :data="catalogs"
+                                                    :props="defaultProps"
+                                                    :show-checkbox="false"
+                                                    node-key="id"
+                                                    default-expand-all
+                                                    :expand-on-click-node="true"
+                                                    :filter-node-method="filterUploadNode"
+                                                    highlight-current
+                                                    ref="catalogsUpload"
+                                            >
+                                            </el-tree>
+                                        </div>
+                                    </div>
+                                </section>
+                            </aside>
+                            <div class="rightContainer">
+                                <header class="topBtns clear">
+                                    <span :class="{active:taskPanel==='正在上传'}" @click="changePanel('正在上传')">正在上传 (9)</span>
+                                    <span :class="{active:taskPanel==='完成上传'}" @click="changePanel('完成上传')">完成上传 (20)</span>
+                                </header>
+                                <section class="taskPanel">
+                                    <table>
+                                        <tbody>
+                                        <tr v-for="n in currPanelTasks[taskPanel]">
+                                            <td>
+                                                <img src="" alt="...">
+                                            </td>
+                                            <td width="50%">
+                                                <el-progress :text-inside="true" :stroke-width="18" :percentage="taskPanel==='正在上传'?60:100"></el-progress>
+                                            </td>
+                                            <td>
+                                                <span class="deleteIcon">
+                                                    <!--symbol引用阿里巴巴图标库-->
+                                                    <svg class="icon" aria-hidden="true">
+                                                        <use xlink:href="#icon-shanchu"></use>
+                                                    </svg>
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </section>
+                                <footer class="addBtn">
+                                    <el-upload
+                                            class="upload"
+                                            ref="upload"
+                                            action="http://192.168.8.105/uploads"
+                                            :auto-upload="false"
+                                            :show-file-list="false">
+                                        <el-button slot="trigger" size="large" type="ghost" icon="plus">添加文件</el-button>
+                                    </el-upload>
+                                </footer>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
+            </div>
+        </section>
+    </body>
+</html>

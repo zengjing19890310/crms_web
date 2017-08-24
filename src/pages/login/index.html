@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>登录</title>
+</head>
+<body>
+    <div class="container" id="app">
+        <div class="loginPanel" v-cloak>
+            <header>
+                <h3 class="title">登 录</h3>
+            </header>
+            <section class="formContainer">
+                <el-form :model="loginForm" label-width="100px" ref="loginForm" :rules="rules">
+                    <el-form-item label="用户名" prop="user">
+                        <el-input v-model="loginForm.user" placeholder="用户名..."></el-input>
+                    </el-form-item>
+                    <el-form-item label="密码" prop="psw">
+                        <el-input v-model="loginForm.psw" type="password" placeholder="密码..."></el-input>
+                    </el-form-item>
+                    <el-form-item label-width="100px">
+                        <el-button type="primary" @click="login('loginForm')">登 录</el-button>
+                        <el-button type="ghost" @click="reset('loginForm')">重 置</el-button>
+                    </el-form-item>
+                </el-form>
+            </section>
+        </div>
+    </div>
+</body>
+</html>
