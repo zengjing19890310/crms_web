@@ -20,6 +20,7 @@ dist/*
 node_modules/*
 *.rar
 *.zip
+uploads/*
 uploads_/*
 
 map.json
